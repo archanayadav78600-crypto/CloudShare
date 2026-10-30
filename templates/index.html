@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudShare - Secure Cloud File Sharing</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ===== Sidebar navigation ===== -->
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#dashboard">
+        <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">
+          <path fill="currentColor" d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+        </svg>
+        <span>Cloud<strong>Share</strong></span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a class="nav-link" href="#dashboard">Dashboard</a>
+        <a class="nav-link" href="#upload">Upload</a>
+        <a class="nav-link" href="#files">My Files</a>
+        <button class="nav-link" type="button" id="navShare">Sharing</button>
+      </nav>
+      <div class="sidebar-note">
+        <strong>Local mode</strong><br>
+        Files are stored on this computer. There is no login in this version.
+      </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn" type="button" id="menuToggle" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+        </button>
+        <h1>Dashboard</h1>
+        <span class="mode-badge">Local mode</span>
+      </header>
+
+      <main class="content">
+
+        <!-- ===== Dashboard cards ===== -->
+        <section id="dashboard" class="stats-grid" aria-label="Storage overview">
+          <article class="stat-card">
+            <p class="stat-label">Total files</p>
+            <p class="stat-value" id="statTotalFiles">0</p>
+            <p class="stat-hint">Stored in CloudShare</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Storage used</p>
+            <p class="stat-value" id="statStorage">0 B</p>
+            <p class="stat-hint">Limit per file: {{ max_upload_label }}</p>
+          </article>
+          <article class="stat-card stat-card-wide">
+            <p class="stat-label">File categories</p>
+            <ul class="category-list" id="categoryList"></ul>
+          </article>
+        </section>
+
+        <!-- ===== Upload ===== -->
+        <section id="upload" class="panel">
+          <h2>Upload files</h2>
+          <div class="dropzone" id="dropzone"
+               data-max-bytes="{{ max_upload_bytes }}"
+               data-max-label="{{ max_upload_label }}"
+               data-allowed="{{ allowed_extensions | join(',') }}">
+            <svg class="dropzone-icon" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true">
+              <path fill="currentColor" d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+            </svg>
+            <p class="dropzone-title">Drag &amp; drop files here</p>
+            <p class="dropzone-sub">or</p>
+            <button class="btn btn-primary" type="button" id="browseButton">Browse files</button>
+            <input type="file" id="fileInput" multiple hidden
+                   accept="{% for ext in allowed_extensions %}.{{ ext }}{% if not loop.last %},{% endif %}{% endfor %}">
+            <p class="dropzone-info">
+              Allowed: {{ allowed_extensions | join(', ') }} &middot; Max {{ max_upload_label }} per file
+            </p>
+          </div>
+          <div class="queue" id="uploadQueue" aria-live="polite"></div>
+        </section>
+
+        <!-- ===== Recent files ===== -->
+        <section class="panel" aria-label="Recent files">
+          <h2>Recent files</h2>
+          <ul class="recent-list" id="recentList"></ul>
+          <p class="muted" id="recentEmpty" hidden>No files uploaded yet.</p>
+        </section>
+
+        <!-- ===== All files ===== -->
+        <section id="files" class="panel">
+          <div class="panel-header">
+            <h2>My files</h2>
+            <span class="muted" id="fileCountLabel"></span>
+          </div>
+
+          <div class="toolbar">
+            <input type="search" id="searchInput" class="search-input"
+                   placeholder="Search files by name..." aria-label="Search files by name" maxlength="100">
+            <div class="chips" id="filterChips" role="group" aria-label="Filter by file type">
+              <button type="button" class="chip active" data-type="all" aria-pressed="true">All</button>
+              <button type="button" class="chip" data-type="images" aria-pressed="false">Images</button>
+              <button type="button" class="chip" data-type="documents" aria-pressed="false">Documents</button>
+              <button type="button" class="chip" data-type="spreadsheets" aria-pressed="false">Spreadsheets</button>
+              <button type="button" class="chip" data-type="presentations" aria-pressed="false">Presentations</button>
+              <button type="button" class="chip" data-type="archives" aria-pressed="false">Archives</button>
+            </div>
+          </div>
+
+          <p class="state-box" id="loadingState">Loading files...</p>
+
+          <div class="state-box" id="emptyState" hidden>
+            <p class="state-title" id="emptyTitle"></p>
+            <p class="muted" id="emptyText"></p>
+          </div>
+
+          <div class="table-wrap" id="tableWrap" hidden>
+            <table class="file-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Size</th>
+                  <th>Uploaded</th>
+                  <th class="actions-col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="fileTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <footer class="footer">CloudShare &middot; Phase 1 (local) &middot; No authentication in this version</footer>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- ===== Delete confirmation ===== -->
+  <dialog class="dialog" id="confirmDialog" aria-labelledby="confirmTitle">
+    <h2 id="confirmTitle">Delete this file?</h2>
+    <p>
+      <strong class="break-word" id="confirmFileName"></strong><br>
+      will be permanently deleted. This cannot be undone.
+    </p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+    </div>
+  </dialog>
+
+  <!-- ===== Sharing information ===== -->
+  <dialog class="dialog" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Secure sharing</h2>
+    <p id="shareMessage"></p>
+    <p class="muted">Planned for the AWS phase:</p>
+    <ul class="plain-list">
+      <li>The S3 bucket stays private.</li>
+      <li>CloudShare creates a temporary pre-signed URL that expires.</li>
+      <li>Anyone who has the link can open the file until it expires, so share links carefully.</li>
+    </ul>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-primary" id="shareClose">Close</button>
+    </div>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
