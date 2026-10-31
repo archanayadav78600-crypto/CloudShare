@@ -196,3 +196,4 @@ git commit -m "CloudShare phase 1: local file sharing app"
 ```
 
 `.gitignore` already excludes `venv/`, `.env`, `uploads/` contents and `data/`.
+codeRabbit AI Code Review Practice 
